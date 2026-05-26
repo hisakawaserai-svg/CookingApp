@@ -14,12 +14,14 @@ Web上のテキストやメモ書きなどの「非構造化データ」から�
 調理する個数を変更すると、それに合わせて必要な材料の分量が計算されます。
 ユーザーが手元で計算する手間を減らすための工夫です。
 <br>
-[CookingApp_record1.webm](https://github.com/user-attachments/assets/bf5f787e-da47-4fec-8025-79e4a1f4867a)
+
+https://github.com/user-attachments/assets/bf5f787e-da47-4fec-8025-79e4a1f4867a
 
 ### 2. 振動または画面で確認できる「ステップタイマー」
 「5分煮込む」などの工程において、調理画面から離れずにその場でタイマーを起動できます。
 <br>
-[CookingApp_record2.webm](https://github.com/user-attachments/assets/9eb9e77d-4b26-43ad-8551-b91e3ea1a90b)
+
+https://github.com/user-attachments/assets/9eb9e77d-4b26-43ad-8551-b91e3ea1a90b
 
 </details>
 
