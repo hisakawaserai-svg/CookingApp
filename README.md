@@ -1,4 +1,4 @@
-[CookingApp_record2.webm](https://github.com/user-attachments/assets/943d1221-42de-4bbb-88c0-7c95115ae6cb)# CookingApp (AIレシピインポート & 調理サポートアプリ)
+# CookingApp (AIレシピインポート & 調理サポートアプリ)
 
 Web上のテキストやメモ書きなどの「非構造化データ」から、Gemini APIを用いてレシピの「材料」や「調理手順」を自動解析・構造化し、スムーズな調理をサポートするReact Native（TypeScript）製アプリです。
 
