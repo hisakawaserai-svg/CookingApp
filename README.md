@@ -5,10 +5,7 @@ Web上のテキストやメモ書きなどの「非構造化データ」から�
 ## 📱 アプリのデモ・スクリーン画面
 | ① レシピ一覧（タグ検索） | ② AIによる自動解析 | ③ 解析データの手直し | ④ ステップ調理画面 |
 | :---: | :---: | :---: | :---: |
-| <img width="200" alt="レシピ一覧" src="https://github.com/user-attachments/assets/89ef22d8-f054-4972-9875-750e83f56720" /> | <img width="200" alt="AIによる解析" src="https://github.com/user-attachments/assets/692c4395-ccde-4bbf-8544-7847dae729c9" />
- | <img width="200" alt="解析データの手直し" src="https://github.com/user-attachments/assets/d55e7c49-da49-47bb-b6fb-a03a87387983" />
- | <img width="200" alt="ステップ調理画面" src="https://github.com/user-attachments/assets/7d4fad59-a00a-4ceb-895d-d4218eed65a1" />
- |
+| <img width="200" alt="レシピ一覧" src="https://github.com/user-attachments/assets/89ef22d8-f054-4972-9875-750e83f56720" /> | <img width="200" alt="AIによる解析" src="https://github.com/user-attachments/assets/692c4395-ccde-4bbf-8544-7847dae729c9" /> | <img width="200" alt="解析データの手直し" src="https://github.com/user-attachments/assets/d55e7c49-da49-47bb-b6fb-a03a87387983" /> | <img width="200" alt="ステップ調理画面" src="https://github.com/user-attachments/assets/7d4fad59-a00a-4ceb-895d-d4218eed65a1" /> |
 
 ## ✨ アプリの特徴
 - **AIによるレシピの構造化**: 
