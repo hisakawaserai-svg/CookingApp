@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { View, Text, TouchableOpacity, TextInput, ScrollView, Vibration, StyleSheet, LayoutAnimation, Platform, UIManager } from 'react-native'
+import { useState, useEffect, useRef } from 'react'
+import { View, Text, TouchableOpacity, TextInput, ScrollView, Vibration, StyleSheet, Platform, UIManager, Animated } from 'react-native'
 
 import { NativeStackNavigationProp } from '@react-navigation/native-stack'
 import { RouteProp } from '@react-navigation/native'
@@ -14,30 +14,46 @@ import { commonStyles } from '../styles/common'
 import { theme } from '../styles/theme'
 import { ScreenMotion } from '../components/ui/ScreenMotion'
 
+const COLLAPSED_INGREDIENTS_HEIGHT = 0
+
 type Props = {
   navigation: NativeStackNavigationProp<any>
   route: RouteProp<{ Cooking: { recipeId: string } }, 'Cooking'>
 }
 
-// カウントダウン
-export const TimerDisplay = ({ timer, elapsed}: { timer: number, elapsed: number }) => {
-  const remaining = timer - elapsed
-  const progress = Math.min(Math.max(elapsed / timer, 0), 1)
+// 1. 料理の進捗バー
+export const RecipeProgressBar = ({ currentIndex, totalSteps, step }: { currentIndex: number, totalSteps: number, step: string }) => {
+  const total = totalSteps > 0 ? totalSteps : 1
+  const recipeProgress = Math.min(Math.max((currentIndex + 1) / total, 0), 1)
 
-  console.log('remaining:', remaining, 'progress:', progress)
-  
   return (
-    <View style={{padding: 16, gap: 8, minHeight: 120 }}>
-      {/* プログレスバー */}
-      <View style={{ height: 10, borderRadius: 999, backgroundColor: theme.colors.primarySoft }}>
-        <View style={{ height: 10, borderRadius: 999, backgroundColor: theme.colors.primary, width: `${progress * 100}%` }} />
+    <View style={{ width: '100%' }}>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 16, marginBottom: 4 }}>
+        <Text style={{ fontSize: 12, color: theme.colors.primary, fontWeight: '700' }}>{step}の進み具合</Text>
+        <Text style={{ fontSize: 12, color: theme.colors.primary, fontWeight: '700' }}>{currentIndex + 1} / {total}</Text>
       </View>
-      {/* 数字 */}
-      <View style={{justifyContent: 'flex-start', alignItems: 'center' ,paddingTop: 8 }}>
-        <Text adjustsFontSizeToFit numberOfLines={1} style={{ fontSize: 120, color: theme.colors.primary, fontWeight: '800', textAlign: 'center' }}>
-          {formatTimer(remaining)}
-        </Text>
+      
+      {/* バー本体 */}
+      <View style={{ height: 6, backgroundColor: theme.colors.primarySoft }}>
+        <View style={{ height: 6, backgroundColor: theme.colors.primary, width: `${recipeProgress * 100}%` }} />
       </View>
+    </View>
+  )
+}
+
+// 2. 純粋なタイマー数字
+export const SimpleTimer = ({ timer, elapsed }: { timer: number, elapsed: number }) => {
+  const remaining = timer - elapsed
+
+  return (
+    <View style={{ justifyContent: 'center', alignItems: 'center', minHeight: 100, paddingVertical: 8 }}>
+      <Text 
+        adjustsFontSizeToFit 
+        numberOfLines={1} 
+        style={{ fontSize: 120, color: theme.colors.primary, fontWeight: '800', textAlign: 'center' }}
+      >
+        {formatTimer(remaining)}
+      </Text>
     </View>
   )
 }
@@ -60,7 +76,12 @@ export const CookingScreen = ({ navigation, route }: Props) => {
   const [phasePreps, setPhasePreps] = useState(0)
   const [phaseCooks, setPhaseCooks] = useState(0)
 
-  const [ currentServings, setCurrentServings] = useState(recipe?.servings ?? 2)
+  const [currentServings, setCurrentServings] = useState(recipe?.servings ?? 2)
+
+  // アコーディオンメモ用のState
+  const [isIngredientsExpanded, setIsIngredientsExpanded] = useState(false)
+  const [contentHeight, setContentHeight] = useState(200)
+
   // 人数・個数倍率
   const ratio = currentServings / (recipe?.servings ?? 2)
   const ratioIngredients = ingredients.map(item => ({
@@ -68,10 +89,13 @@ export const CookingScreen = ({ navigation, route }: Props) => {
     num: (item?.num ?? 0)* ratio
   }))
 
-  // タイマー
+  // タイマー関連
   const [isPaused, setIsPaused] = useState(true)
   const [isFinish, setIsFinish] = useState(false)
-  const [elapsed, setElapsed] = useState(0) // 経過時間
+  const [elapsed, setElapsed] = useState(0)
+
+  // アコーディオンのアニメーション設定
+  const ingredientsAnim = useRef(new Animated.Value(0)).current
 
   const loadRecipes = async () => {
     try {
@@ -89,6 +113,24 @@ export const CookingScreen = ({ navigation, route }: Props) => {
   }
 
   useEffect(() => {
+    navigation.setOptions({
+      headerRight: () => {
+        if (phase === 1 || phase === 2) {
+          return (
+            <TouchableOpacity 
+              style={{ marginRight: 10 }} 
+              onPress={() => setIsIngredientsExpanded(prev => !prev)}
+            >
+              <Icon name="notebook-outline" size={28} color={theme.colors.primary} />
+            </TouchableOpacity>
+          )
+        }
+        return null
+      },
+    })
+  }, [navigation, phase])
+
+  useEffect(() => {
     loadRecipes()
   }, [])
 
@@ -104,15 +146,7 @@ export const CookingScreen = ({ navigation, route }: Props) => {
   }, [isPaused, isFinish])
 
   const startTimerAlarm = () => {
-    // パターン：[待機, 振動, 待機, 振動, ...] （ミリ秒単位）
-    const PATTERN = [
-      0,   // すぐに開始
-      400, // ブッ（0.4秒）
-      200, // 待機（0.2秒）
-      400, // ブッ（0.4秒）
-      600, // 少し長めの待機（0.6秒）
-    ]
-  
+    const PATTERN = [0, 400, 200, 400, 600]
     Vibration.vibrate(PATTERN, true)
   }
 
@@ -127,7 +161,6 @@ export const CookingScreen = ({ navigation, route }: Props) => {
     }
   }, [elapsed, isFinish])
 
-  // コンポーネントが消える時にバイブを絶対に止める「保険」
   useEffect(() => {
     return () => {
       Vibration.cancel()
@@ -140,9 +173,24 @@ export const CookingScreen = ({ navigation, route }: Props) => {
     setIsFinish(false)
     setElapsed(0)
     Vibration.cancel()
+    
+    const currentStep = phase === 1 ? prepSteps[phasePreps] : cookSteps[phaseCooks]
   }, [phase, phasePreps, phaseCooks])
 
-  // isPaused と isFinishでもなければ画面が消えないようにする
+  // メモを開閉させるアニメーション
+  useEffect(() => {
+    Animated.timing(ingredientsAnim, {
+      toValue: isIngredientsExpanded ? 1 : 0,
+      duration: 300,
+      useNativeDriver: false,
+    }).start(({ finished }) => {
+      // 💡 追加：閉じるアニメーションが「完全に終わったら」、高さを0にする！
+      if (finished && !isIngredientsExpanded) {
+        setContentHeight(0)
+      }
+    })
+  }, [isIngredientsExpanded])
+
   const isRunning = !isPaused && !isFinish
   useEffect(() => {
     if (isRunning) activateKeepAwake()
@@ -151,6 +199,7 @@ export const CookingScreen = ({ navigation, route }: Props) => {
     return () => deactivateKeepAwake()
   }, [isRunning])
 
+  // ボタン移動ロジック
   const moveButton = (direction: 'prev' | 'next') => {
     Vibration.cancel()
     if (direction === 'prev') {
@@ -200,14 +249,60 @@ export const CookingScreen = ({ navigation, route }: Props) => {
   }
   const hasTimer = Boolean((phase === 1 ? prepSteps[phasePreps] : cookSteps[phaseCooks])?.timer)
 
+  // メモの高さ計算用補間
+  const ingredientsHeight = ingredientsAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [COLLAPSED_INGREDIENTS_HEIGHT, contentHeight + COLLAPSED_INGREDIENTS_HEIGHT],
+  })
+
   return (
     <View style={commonStyles.screen}>
       <View style={commonStyles.decorTop} />
-        <View style={commonStyles.decorBottom} />
-          <ScreenMotion key={`${phase}-${phasePreps}-${phaseCooks}`} style={[commonStyles.pageWrap, { paddingBottom: 100 }]} delay={40}>
+      {/* プログレスバー */}
+      {(phase === 1 || phase === 2) && (
+        <View style={{ paddingHorizontal: 16, paddingVertical: 8 }}>
+          {/* 上のテキスト表示（今どっちをやってるか） */}
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+            <Text style={{ fontSize: 12, color: theme.colors.primary, fontWeight: '700' }}>
+              {phase === 1 ? '下準備の進み具合' : '調理の進み具合'}
+            </Text>
+            <Text style={{ fontSize: 12, color: theme.colors.primary, fontWeight: '700' }}>
+              {phase === 1 ? `${phasePreps + 1} / ${prepSteps.length}` : `${phaseCooks + 1} / ${cookSteps.length}`}
+            </Text>
+          </View>
+
+          {/* バーを2つ横並びにする土台 */}
+          <View style={{ flexDirection: 'row', gap: 6, height: 6 }}>
+            
+            {/* 左側：下準備のバー */}
+            <View style={{ flex: 1, backgroundColor: theme.colors.primarySoft, borderRadius: 999, overflow: 'hidden' }}>
+              <View style={{ 
+                height: '100%', 
+                backgroundColor: theme.colors.primary, 
+                // 下準備中なら今の進捗、調理フェーズに入ってたら100%（満タン）
+                width: phase === 1 ? `${((phasePreps + 1) / prepSteps.length) * 100}%` : '100%' 
+              }} />
+            </View>
+
+            {/* 右側：調理のバー */}
+            <View style={{ flex: 1, backgroundColor: theme.colors.primarySoft, borderRadius: 999, overflow: 'hidden' }}>
+              <View style={{ 
+                height: '100%', 
+                backgroundColor: theme.colors.primary, 
+                // 下準備中ならまだ0%、調理中なら今の進捗
+                width: phase === 2 ? `${((phaseCooks + 1) / cookSteps.length) * 100}%` : '0%' 
+              }} />
+            </View>
+          </View>
+        </View>
+      )}
+      <View style={commonStyles.decorBottom} />
+      
+      <ScreenMotion key={`${phase}-${phasePreps}-${phaseCooks}`} style={[commonStyles.pageWrap, { paddingBottom: 100 }]} delay={40}>
+        
+        {/* phase 0: 材料調整 */}
         {phase === 0 && (
           <ScrollView contentContainerStyle={commonStyles.content}>
-            {/* 材料表示 */}
             <View style={commonStyles.card}>
               <View style={{flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center'}}>
                 <Text style={commonStyles.sectionTitle}>材料</Text>
@@ -234,7 +329,7 @@ export const CookingScreen = ({ navigation, route }: Props) => {
                     <Text>{recipe?.servingsUnit}</Text>
                   </View>
 
-                  <TouchableOpacity onPress={() => setCurrentServings(prev => Math.max(prev - 1, 0))}>
+                  <TouchableOpacity onPress={() => setCurrentServings(prev => Math.max(prev - 1, 1))}>
                     <Icon name='minus' size={30} />
                   </TouchableOpacity>
                 </View>
@@ -249,9 +344,50 @@ export const CookingScreen = ({ navigation, route }: Props) => {
           </ScrollView>
         )}
 
+        {/* phase 1, 2: 調理中画面 */}
         {(phase === 1 || phase === 2) && (
           <View style={styles.phaseWrap}>
-            {/* 1. スクロールエリア (テキスト) */}
+          {/* 💡 最終兵器：アニメーション中は表示し、完全に閉じきったら（高さ0になったら）要素ごと空間をゼロにする */}
+          {(isIngredientsExpanded || contentHeight > 0) && (
+            <Animated.View 
+              style={[
+                styles.ingredientsPanel, 
+                { 
+                  height: ingredientsHeight,
+                  // 💡 開いている時だけ枠線と下のマージンをつける
+                  borderWidth: isIngredientsExpanded ? 1 : 0,
+                  marginBottom: isIngredientsExpanded ? 8 : 0,
+                  overflow: 'hidden',
+                }
+              ]}
+            > 
+              <ScrollView 
+                style={styles.ingredientsScroll}
+                scrollEnabled={isIngredientsExpanded}
+                showsVerticalScrollIndicator={false}
+              >
+                <View 
+                  style={styles.ingredientsContent}
+                  onLayout={(e) => {
+                    const { height } = e.nativeEvent.layout
+                    if (isIngredientsExpanded && height > 0) {
+                      setContentHeight(Math.min(height, 250))
+                    }
+                  }}
+                >
+                  {ratioIngredients.map(ing => (
+                    <View key={ing.id} style={styles.ingredientRowPanel}>
+                      <Text style={commonStyles.bodyText}>{ing.name}</Text>
+                      <Text style={styles.ingredientAmount}>{formatIngredient(ing.num, ing.unit)}</Text>
+                    </View>
+                  ))}
+                </View>
+              </ScrollView>
+            </Animated.View>
+          )}
+
+
+            {/* 調理手順テキスト表示 */}
             <ScrollView 
               style={styles.phaseContent} 
               contentContainerStyle={commonStyles.content}
@@ -264,14 +400,13 @@ export const CookingScreen = ({ navigation, route }: Props) => {
                   {(phase === 1 ? prepSteps[phasePreps] : cookSteps[phaseCooks])?.text}
                 </Text>
               </View>
-              {/* テキストが短い場合でも、タイマーとの間に余白を作るためのスペーサー（任意） */}
               <View style={{ height: 20 }} />
             </ScrollView>
 
-            {/* 2. タイマー固定エリア */}
+            {/* 現在のフェーズに応じたステップ情報をTimerDisplayに渡す */}
             {(phase === 1 ? prepSteps[phasePreps] : cookSteps[phaseCooks])?.timer ? (
               <View style={styles.timerArea}>
-                <TimerDisplay 
+                <SimpleTimer
                   timer={(phase === 1 ? prepSteps[phasePreps] : cookSteps[phaseCooks]).timer!} 
                   elapsed={elapsed} 
                 />
@@ -280,9 +415,9 @@ export const CookingScreen = ({ navigation, route }: Props) => {
           </View>
         )}
 
+        {/* phase 3: 完成 */}
         {phase === 3 && (
           <View style={[commonStyles.content, styles.finishWrap]}>
-            {/* 完成表示 */}
             <View style={commonStyles.card}>
               <Text style={styles.finishText}>完成!!</Text>
               <Text style={styles.recipeName}>{recipe?.dishName}</Text>
@@ -291,6 +426,7 @@ export const CookingScreen = ({ navigation, route }: Props) => {
         )}
       </ScreenMotion>
 
+      {/* ボトムバー */}
       <View style={commonStyles.bottomBar}>
         <View style={styles.edgeArea}>
           {phase !== 0 && (
@@ -301,9 +437,9 @@ export const CookingScreen = ({ navigation, route }: Props) => {
           )}
         </View>
 
-        {/* 中央エリア：初期状態・終了状態・タイマー操作の出し分け */}
+        {/* 中央エリアの出し分け */}
         {phase === 0 ? (
-          <TouchableOpacity style={[commonStyles.primaryButton, styles.centerButton]} onPress={() => setPhase(2)}>
+          <TouchableOpacity style={[commonStyles.primaryButton, styles.centerButton]} onPress={() => moveButton('next')}>
             <Text style={commonStyles.primaryButtonText}>準備完了</Text>
           </TouchableOpacity>
         ) : phase === 3 ? (
@@ -311,21 +447,17 @@ export const CookingScreen = ({ navigation, route }: Props) => {
             <Text style={commonStyles.primaryButtonText}>ホームに戻る</Text>
           </TouchableOpacity>
         ) : (
-          /* 調理中（phase 1, 2）の中央ボタン管理 */
           <View style={styles.edgeArea}>
             {isFinish ? (
-              // タイマーが鳴り終わったら、最優先で「アラームを止めて次へ進む」デカボタンを出す
               <TouchableOpacity style={commonStyles.primaryButton} onPress={() => moveButton('next')}>
                 <Icon name="bell-off" size={24} color={'#FFF'} />
                 <Text style={commonStyles.primaryButtonText}>止めて次へ</Text>
               </TouchableOpacity>
             ) : hasTimer ? (
-              // タイマーがあるステップの時だけ、再生・一時停止ボタンを出す
               <TouchableOpacity style={commonStyles.primaryButton} onPress={() => setIsPaused(!isPaused)}>
                 <Icon name={isPaused ? "play" : "pause"} size={30} color={'#FFF'} />
               </TouchableOpacity>
             ) : (
-              // タイマーがないステップなら、中央はスッキリ何も出さない
               <View />
             )}
           </View>
@@ -370,6 +502,37 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.spacing.md,
     paddingBottom: theme.spacing.md,
     gap: theme.spacing.xs,
+  },
+  ingredientsPanel: {
+    backgroundColor: theme.colors.surface,
+    borderRadius: 12,
+    borderColor: theme.colors.border,
+    overflow: 'hidden', // 必須
+  },
+  ingredientsToggle: {
+    height: COLLAPSED_INGREDIENTS_HEIGHT,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: theme.colors.primarySoft,
+  },
+  ingredientsToggleText: {
+    color: theme.colors.primary,
+    fontWeight: '800',
+    fontSize: 15,
+  },
+  ingredientsScroll: {
+    flex: 1,
+  },
+  ingredientsContent: {
+    padding: 14,
+    gap: 4,
+  },
+  ingredientRowPanel: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border + '44',
   },
   ingredientRow: {
     flexDirection: 'row',
